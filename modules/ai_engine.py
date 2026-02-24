@@ -1,31 +1,26 @@
-import aiohttp
+import os
 import logging
-from core.config import GEMINI_API_KEY
+from openai import AsyncOpenAI
+from dotenv import load_dotenv
 
+load_dotenv()
 logger = logging.getLogger("AI_ENGINE")
 
 class AIBusinessManager:
     def __init__(self):
-        self.api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     async def generate_response(self, user_text, context=""):
-        system_prompt = (
-            "Ты — AI-сотрудник компании. Твоя цель: помогать клиентам на основе контекста.\n"
-            f"Контекст компании: {context}\n\n"
-            f"Запрос клиента: {user_text}"
-        )
-        
-        payload = {
-            "contents": [{"parts": [{"text": system_prompt}]}]
-        }
-
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.post(self.api_url, json=payload) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return data['candidates'][0]['content']['parts'][0]['text']
-                    return "Прошу прощения, я сейчас на техобслуживании. Попробуйте позже."
-            except Exception as e:
-                logger.error(f"AI Error: {e}")
-                return "Ошибка связи с интеллектом."
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": f"Ты — Senior AI Sales Manager. Используй контекст компании: {context}"},
+                    {"role": "user", "content": user_text}
+                ],
+                temperature=0.7
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"OpenAI Error: {e}")
+            return "⚠️ Системная ошибка AI. Инженеры уже уведомлены."
